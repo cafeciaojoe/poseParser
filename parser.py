@@ -2,6 +2,7 @@
 import math
 import json
 from datetime import datetime as time
+from socket_class import SocketManager
 
 import numpy as np
 
@@ -42,6 +43,7 @@ class PoseParserNode:
     DEFAULT_METRIC = "demo_metric"
     metrics = None
     metric_functions = None
+    socket_manager = None
 
     def __init__(self):
         raise TypeError("Class is singleton, call instance() not init")
@@ -86,21 +88,36 @@ class PoseParserNode:
 
         """
         # points_data = json.loads(data)
+
+        print('the data type is', type(data))
         points_data = data
         keypoints = self.convert_to_dictionary(points_data["keypoints"])
+        print('the data type is now', type(keypoints))
         if self.DEFAULT_METRIC in PoseParserNode.metric_functions:
             trajectory_points = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints)
             if trajectory_points is not None:
                 self.publisher(trajectory_points)
 
-    # def listener(self):
-    #     """
-    #     Starts the node listening on subscribed topics until shut down.
-    #     """
-    #     rospy.Subscriber("pose_data", String, self.callback)
-    #
-    #     # spin() simply keeps python from exiting until this node is stopped
-    #     rospy.spin()
+
+    def listener(self):
+        """
+        Creates and starts the socket server.
+        """
+        if self.socket_manager is None:
+            self.socket_manager = SocketManager(self, server=True)
+        self.socket_manager.listen()
+
+    def got_message(self, address, message):
+        """
+        Callback function for when a message is received over sockets.
+
+        Args:
+            address: The address of the sender.
+            message(str): The message received.
+        """
+        self.callback(message)
+        # print(message)
+        return "DONE"
 
     def publisher(self, trajectory_parameters):
         """
@@ -109,13 +126,14 @@ class PoseParserNode:
         Args:
             trajectory_parameters(dict): A dictionary containing all data fields required to build a Trajectory message.
         """
-        # TODO - This is where x/y/z metric results come in. import cfclient (?)
+        # TODO - This is where x/y/z metric results come in.
         pass
 
     def test_metrics(self, keypoints):
         """
         Calls all three advanced metrics with the keypoint data for viewing logs of responses for metrics.
         Uncommenting the print lines in these metrics enables the console log functionality.
+        This is more of an example of how to call metrics than functional code.
         """
         PoseParserNode.metrics.execute_metric("midpoint", keypoints)
         PoseParserNode.metrics.execute_metric("centroid", keypoints)
@@ -582,5 +600,6 @@ class PoseMetrics:
 
 if __name__ == '__main__':
     # Startup for node.
-    node = PoseParserNode()
+    # TODO - These two lines are how to create the pose parser object and start the server.
+    node = PoseParserNode.instance()
     node.listener()
