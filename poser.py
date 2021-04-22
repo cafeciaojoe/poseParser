@@ -12,6 +12,7 @@ app = Flask(__name__)
 CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 socket_manager = SocketManager(None, server=False)
+camera_name = "poser"
 
 @app.route('/<path:path>')
 def send_js(path):
@@ -42,11 +43,12 @@ def coco():
     data = list(request.get_json())
 
     if type(data) is list:
-        print(data)
+        # print(data)
         # print('the data type is', type(data))
         data = data[0]
+        named_data = {camera_name: data}
         # print('the data type is now', type(data))
-        socket_manager.send_message(message=data)
+        socket_manager.send_message(message=named_data)
         #socket_manager.send_message(message=999)
 
     return "", 200

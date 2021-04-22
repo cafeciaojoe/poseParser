@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 import math
 import json
 import pprint
@@ -31,8 +30,6 @@ PART_MAP = {
     16: "rightAnkle"
 }  # A 'timestamp' field is added to dictionary when parsed.
 
-# The topic the simulator is subscribed to.
-
 
 class PoseParserNode:
     """
@@ -45,6 +42,9 @@ class PoseParserNode:
     metrics = None
     metric_functions = None
     socket_manager = None
+    username = ""
+    # TODO - Joe, this sets logging to files on and off
+    log_data = False
 
     def __init__(self):
         raise TypeError("Class is singleton, call instance() not init")
@@ -53,7 +53,8 @@ class PoseParserNode:
     def instance(cls):
         if cls._instance is None:
             cls._instance = cls.__new__(cls)
-            cls.metrics = PoseMetrics()
+            # TODO - Here we set history_length to none to ensure list is never pruned
+            cls.metrics = PoseMetrics(history_length=None)
             cls.metric_functions = PoseMetrics.metric_list.keys()
         return cls._instance
 
@@ -91,14 +92,31 @@ class PoseParserNode:
         # points_data = json.loads(data)
 
         # print('the data type is', type(data))
-        points_data = data
-        keypoints = self.convert_to_dictionary(points_data["keypoints"])
-        # print('the data type is now', type(keypoints))
-        # if self.DEFAULT_METRIC in PoseParserNode.metric_functions:
-        trajectory_points = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints)
-    #     if trajectory_points is not None:
-    #         self.publisher(trajectory_points)
-        self.publisher(trajectory_points)
+        dict_name = list(data.keys())
+        print(dict_name)
+        # TODO - Not ideal, but split functions based on first key in dict
+        if dict_name[0] == "poser" and self.log_data:
+            points_data = data["poser"]
+            keypoints = self.convert_to_dictionary(points_data["keypoints"])
+
+            # print('the data type is now', type(keypoints))
+            # if self.DEFAULT_METRIC in PoseParserNode.metric_functions:
+            trajectory_points = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints)
+        #     if trajectory_points is not None:
+        #         self.publisher(trajectory_points)
+            self.publisher(trajectory_points)
+        elif dict_name[0] == "username":
+            self.username = data["username"]
+        elif dict_name[0] == "flightmode":
+            # If key in dictionary is flightmode, save flightmode to check state and
+            # decide on starting or stopping logging
+            flightmode = data["flightmode"]
+            if flightmode == "follow":
+                self.log_data = True
+            else:
+                self.log_data = False
+
+
 
     def listener(self):
         """
@@ -117,7 +135,7 @@ class PoseParserNode:
             message(str): The message received.
         """
         self.callback(message)
-        # print(message)
+        print(message)
         return "DONE"
 
     def publisher(self, trajectory_parameters):
@@ -127,10 +145,8 @@ class PoseParserNode:
         Args:
             trajectory_parameters(dict): A dictionary containing all data fields required to build a Trajectory message.
         """
-        print(trajectory_parameters["proximity"]) # 10.132.69.52
+        # print(trajectory_parameters["proximity"]) # 10.132.69.52
         self.socket_manager.send_message(port=5050, message=trajectory_parameters["proximity"])
-
-
 
     def test_metrics(self, keypoints):
         """
@@ -219,10 +235,11 @@ class PoseMetrics:
             # Log history of calculated centroid.
             self.centroid(keypoints)
             # Prune list if it gets too long
-            if len(PoseMetrics.history) > self.history_length:
-                PoseMetrics.history.pop()
-            if len(PoseMetrics.centroid_history) > self.history_length:
-                PoseMetrics.centroid_history.pop()
+            if self.history_length is not None:
+                if len(PoseMetrics.history) > self.history_length:
+                    PoseMetrics.history.pop()
+                if len(PoseMetrics.centroid_history) > self.history_length:
+                    PoseMetrics.centroid_history.pop()
             return True
         except KeyError as e:
             print("Exception occured\n%s\nKeyPoints passed in:\n%s" % (str(e), str(keypoints)))
@@ -257,9 +274,9 @@ class PoseMetrics:
         proximity_y = abs((midpoint_y - point_1[1]) / x_diff)
 
         # Uncomment the following to have results logged to the console.
-        print("Offset Mid\nPoint 1: %s @ %s, Point 2: %s @ %s, Mid-Point: %s, Proximity Score: %s" %
-                      (point_1_name, str(point_1), point_2_name, str(point_2), str((midpoint_x, midpoint_y)),
-                       str((proximity_x + proximity_y) / 2)))
+        # print("Offset Mid\nPoint 1: %s @ %s, Point 2: %s @ %s, Mid-Point: %s, Proximity Score: %s" %
+        #               (point_1_name, str(point_1), point_2_name, str(point_2), str((midpoint_x, midpoint_y)),
+        #                str((proximity_x + proximity_y) / 2)))
 
         return self.create_return_dictionary(x=midpoint_x, y=midpoint_y,
                                              proximity_value=(proximity_x + proximity_y) / 2)
@@ -291,7 +308,7 @@ class PoseMetrics:
                                          "timestamp": time.now()})
 
         # Uncomment the following to have results logged to the console.
-        print("Centroid\nMidpoint: %s" % str(midpoint))
+        # print("Centroid\nMidpoint: %s" % str(midpoint))
 
         return self.create_return_dictionary(x=midpoint[0], y=midpoint[1])
 
@@ -311,31 +328,6 @@ class PoseMetrics:
         """
         avg_speed = self.average_speed_of_point("midpoint")
         return self.create_return_dictionary(uncategorized_data=avg_speed)
-
-    def avg_speed_of_points(self, keypoints=None, point_list=(DEFAULT_FOCUS_POINT_1, DEFAULT_FOCUS_POINT_2),
-                            second=None):
-        """
-        Computes the average speed of one or more keypoints using recorded history.
-
-        Args:
-            point_list(list[str]): A list of keypoint names to measure.
-            keypoints: Not Used.
-            second: Not Used.
-
-        Returns:
-            dict[str, float]: Dictionary of average speed of each point requested.
-        """
-        speed_dict = {}
-        if point_list is None:
-            point_list = PART_MAP.values()
-        for point in point_list:
-            if point in PART_MAP.values():
-                speed_dict[point] = self.average_speed_of_point(point)
-
-        # Uncomment the following to have results logged to the console.
-        print("Average Speeds\n%s" % str(speed_dict))
-
-        return self.create_return_dictionary(uncategorized_data=speed_dict)
 
     @staticmethod
     def get_angle(base_point, outer_point):
@@ -360,6 +352,31 @@ class PoseMetrics:
             y = base_point[1] - outer_point[1]
 
         return math.degrees(math.atan(y / x))
+
+    def avg_speed_of_points(self, keypoints=None, point_list=(DEFAULT_FOCUS_POINT_1, DEFAULT_FOCUS_POINT_2),
+                            second=None):
+        """
+        Computes the average speed of one or more keypoints using recorded history.
+
+        Args:
+            point_list(list[str]): A list of keypoint names to measure.
+            keypoints: Not Used.
+            second: Not Used.
+
+        Returns:
+            dict[str, float]: Dictionary of average speed of each point requested.
+        """
+        speed_dict = {}
+        if point_list is None:
+            point_list = PART_MAP.values()
+        for point in point_list:
+            if point in PART_MAP.values():
+                speed_dict[point] = self.average_speed_of_point(point)
+
+        # Uncomment the following to have results logged to the console.
+        # print("Average Speeds\n%s" % str(speed_dict))
+
+        return self.create_return_dictionary(uncategorized_data=speed_dict)
 
     @staticmethod
     def absolute_speed(point_name, keypoints_a, keypoints_b):
@@ -600,6 +617,28 @@ class PoseMetrics:
         except KeyError:
             return None
         return results
+
+    def get_histories(self):
+        return self.history, self.centroid_history
+
+    def clear_history(self):
+        self.history.clear()
+        self.centroid_history.clear()
+
+    def load_history(self, username):
+        with open(username + ".json", "r") as user_file:
+            data = json.loads(user_file.read())
+            try:
+                self.history = data["history"]
+                self.centroid_history = data["centroid_history"]
+            except KeyError:
+                pass
+
+    def save_history(self, username):
+        with open(username + ".json", "w") as user_file:
+            data = {"history": self.history,
+                    "centroid_history": self.centroid_history}
+            user_file.write(json.dumps(data))
 
 
 if __name__ == '__main__':

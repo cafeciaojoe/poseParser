@@ -24,7 +24,6 @@ class SocketManager:
         "got_message(self, address, message)" function.
     """
     DEFAULT_IP = "127.0.0.1"
-    MESSAGE_SEPARATOR_PATTERN = "-----"
     DEFAULT_PORT = 5001
     DEFAULT_PACKET_SIZE = 4096
     DEFAULT_IDLE_TIMEOUT = 30
@@ -124,3 +123,6 @@ class SocketManager:
 
     def stop_server(self):
         SocketManager.run = False
+
+    def update_callback(self, new_callback):
+        self.callback = new_callback
