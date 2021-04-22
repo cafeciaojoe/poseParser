@@ -42,9 +42,10 @@ def coco():
     data = list(request.get_json())
 
     if type(data) is list:
-        print('the data type is', type(data))
+        print(data)
+        # print('the data type is', type(data))
         data = data[0]
-        print('the data type is now', type(data))
+        # print('the data type is now', type(data))
         socket_manager.send_message(message=data)
         #socket_manager.send_message(message=999)
 

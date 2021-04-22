@@ -1,13 +1,14 @@
 #!/usr/bin/python3
 import math
 import json
+import pprint
 from datetime import datetime as time
 from socket_class import SocketManager
 
 import numpy as np
 
 # Confidence score required to validate a keypoint set.
-MINIMUM_CONFIDENCE = 0.2
+MINIMUM_CONFIDENCE = 0
 
 # Mapping of parts to array as per posenet keypoints.
 PART_MAP = {
@@ -40,7 +41,7 @@ class PoseParserNode:
     _instance = None
     # Options for default metric are any one string from the following:
     # "demo_metric", "offset_midpoints", "centroid", "average_speed_of_points", "positional_demo", "centroid_coords"
-    DEFAULT_METRIC = "demo_metric"
+    DEFAULT_METRIC = "offset_midpoints"
     metrics = None
     metric_functions = None
     socket_manager = None
@@ -89,15 +90,15 @@ class PoseParserNode:
         """
         # points_data = json.loads(data)
 
-        print('the data type is', type(data))
+        # print('the data type is', type(data))
         points_data = data
         keypoints = self.convert_to_dictionary(points_data["keypoints"])
-        print('the data type is now', type(keypoints))
-        if self.DEFAULT_METRIC in PoseParserNode.metric_functions:
-            trajectory_points = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints)
-            if trajectory_points is not None:
-                self.publisher(trajectory_points)
-
+        # print('the data type is now', type(keypoints))
+        # if self.DEFAULT_METRIC in PoseParserNode.metric_functions:
+        trajectory_points = PoseParserNode.metrics.execute_metric(self.DEFAULT_METRIC, keypoints)
+    #     if trajectory_points is not None:
+    #         self.publisher(trajectory_points)
+        self.publisher(trajectory_points)
 
     def listener(self):
         """
@@ -126,8 +127,10 @@ class PoseParserNode:
         Args:
             trajectory_parameters(dict): A dictionary containing all data fields required to build a Trajectory message.
         """
-        # TODO - This is where x/y/z metric results come in.
-        pass
+        print(trajectory_parameters["proximity"]) # 10.132.69.52
+        self.socket_manager.send_message(port=5050, message=trajectory_parameters["proximity"])
+
+
 
     def test_metrics(self, keypoints):
         """
@@ -135,9 +138,9 @@ class PoseParserNode:
         Uncommenting the print lines in these metrics enables the console log functionality.
         This is more of an example of how to call metrics than functional code.
         """
-        PoseParserNode.metrics.execute_metric("midpoint", keypoints)
-        PoseParserNode.metrics.execute_metric("centroid", keypoints)
-        return PoseParserNode.metrics.execute_metric("average_speed_of_points", keypoints)
+        print(PoseParserNode.metrics.execute_metric("offset_midpoints", keypoints, "leftEye", "rightEye"))
+        print(PoseParserNode.metrics.execute_metric("centroid", keypoints, ["leftEye", "rightEye"]))
+        print(PoseParserNode.metrics.execute_metric("average_speed_of_points", keypoints, ["leftEye", "rightEye"]))
 
 
 class PoseMetrics:
@@ -149,8 +152,8 @@ class PoseMetrics:
     The variable dictionary "metric_list" can contain a string name and function value to ease calling of metrics.
     """
     # Default Focus for the average_speed metric
-    DEFAULT_FOCUS_POINT_1 = "leftWrist"
-    DEFAULT_FOCUS_POINT_2 = "rightWrist"
+    DEFAULT_FOCUS_POINT_1 = "leftEye"
+    DEFAULT_FOCUS_POINT_2 = "rightEye"
 
     # Default focus for angle threshold demo.
     ANGLE_THRESHOLD = 15
@@ -254,9 +257,9 @@ class PoseMetrics:
         proximity_y = abs((midpoint_y - point_1[1]) / x_diff)
 
         # Uncomment the following to have results logged to the console.
-        # print("Offset Mid\nPoint 1: %s @ %s, Point 2: %s @ %s, Mid-Point: %s, Proximity Score: %s" %
-        #               (point_1_name, str(point_1), point_2_name, str(point_2), str((midpoint_x, midpoint_y)),
-        #                str((proximity_x + proximity_y) / 2)))
+        print("Offset Mid\nPoint 1: %s @ %s, Point 2: %s @ %s, Mid-Point: %s, Proximity Score: %s" %
+                      (point_1_name, str(point_1), point_2_name, str(point_2), str((midpoint_x, midpoint_y)),
+                       str((proximity_x + proximity_y) / 2)))
 
         return self.create_return_dictionary(x=midpoint_x, y=midpoint_y,
                                              proximity_value=(proximity_x + proximity_y) / 2)
@@ -288,7 +291,7 @@ class PoseMetrics:
                                          "timestamp": time.now()})
 
         # Uncomment the following to have results logged to the console.
-        # print("Centroid\nMidpoint: %s" % str(midpoint))
+        print("Centroid\nMidpoint: %s" % str(midpoint))
 
         return self.create_return_dictionary(x=midpoint[0], y=midpoint[1])
 
@@ -306,7 +309,7 @@ class PoseMetrics:
             dict: The average movement speed of the calculated centroid, formatted into generic dictionary as
                 expected by parser node.
         """
-        avg_speed =self.average_speed_of_point("midpoint")
+        avg_speed = self.average_speed_of_point("midpoint")
         return self.create_return_dictionary(uncategorized_data=avg_speed)
 
     def avg_speed_of_points(self, keypoints=None, point_list=(DEFAULT_FOCUS_POINT_1, DEFAULT_FOCUS_POINT_2),
@@ -330,7 +333,7 @@ class PoseMetrics:
                 speed_dict[point] = self.average_speed_of_point(point)
 
         # Uncomment the following to have results logged to the console.
-        # print("Average Speeds\n%s" % str(speed_dict))
+        print("Average Speeds\n%s" % str(speed_dict))
 
         return self.create_return_dictionary(uncategorized_data=speed_dict)
 
@@ -370,11 +373,12 @@ class PoseMetrics:
         Returns:
             float: Velocity for movement between two points irrespective of direction.
         """
+
         abs_speed = 0.0
         if point_name in PART_MAP.values() or point_name == "midpoint":
             abs_speed = np.sqrt((abs(keypoints_a[point_name][0] - keypoints_b[point_name][0]) ** 2) +
                                 (abs(keypoints_a[point_name][1] - keypoints_b[point_name][1]) ** 2)) / \
-                        abs(keypoints_b["timestamp"].to_sec() - keypoints_a["timestamp"].to_sec())
+                        abs((keypoints_b["timestamp"] - keypoints_a["timestamp"]).microseconds)
         return abs_speed
 
     def average_speed_of_point(self, point_name):
