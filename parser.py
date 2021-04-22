@@ -82,12 +82,8 @@ class PoseParserNode:
 
     def callback(self, data):
         """
-        Callback function for ROS pub/sub model.
-        Converts message to dictionary and runs currently selected metric.
-
-        Args:
-            data: Data received from ROS subscription.
-
+        Callback serves as a function entry point for all socket calls for setting
+        recording logs, usernames and obtaining pose data
         """
         # points_data = json.loads(data)
 
@@ -146,7 +142,7 @@ class PoseParserNode:
             trajectory_parameters(dict): A dictionary containing all data fields required to build a Trajectory message.
         """
         # print(trajectory_parameters["proximity"]) # 10.132.69.52
-        self.socket_manager.send_message(port=5050, message=trajectory_parameters["proximity"])
+        self.socket_manager.send_message(port=5050, message=(trajectory_parameters["proximity"]))
 
     def test_metrics(self, keypoints):
         """
