@@ -1,4 +1,4 @@
-#! /usr/bin/python
+
 import time
 from socket_class import SocketManager
 from flask import Flask, render_template, json, request, send_from_directory

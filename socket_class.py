@@ -15,7 +15,11 @@ import socket
 import threading
 from time import sleep
 import pickle
+import signal
+import sys
 
+#  google exit 0 python catch signal 
+# TODO catch exit 0, kill all threads, set run - False
 
 class SocketManager:
     """

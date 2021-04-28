@@ -89,7 +89,6 @@ class PoseParserNode:
 
         # print('the data type is', type(data))
         dict_name = list(data.keys())
-        print(dict_name)
         # TODO - Not ideal, but split functions based on first key in dict
         if dict_name[0] == "poser" and self.log_data:
             points_data = data["poser"]
@@ -103,6 +102,7 @@ class PoseParserNode:
             self.publisher(trajectory_points)
         elif dict_name[0] == "username":
             self.username = data["username"]
+            print(self.username)
         elif dict_name[0] == "flightmode":
             # If key in dictionary is flightmode, save flightmode to check state and
             # decide on starting or stopping logging
