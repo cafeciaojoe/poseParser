@@ -1,9 +1,8 @@
-
-import time
-from socket_class import SocketManager
-from flask import Flask, render_template, json, request, send_from_directory
+# from socket_class import SocketManager
+from PoseParser.socket_class import SocketManager
+from flask import Flask, request, send_from_directory
 from flask_cors import CORS, cross_origin
-import logging
+
 """
 Runs a simple Flask server for communication between Posenet and ROS
 """

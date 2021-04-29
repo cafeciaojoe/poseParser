@@ -1,8 +1,8 @@
 import math
 import json
-import pprint
 from datetime import datetime as time
-from socket_class import SocketManager
+from PoseParser.socket_class import SocketManager
+# from socket_class import SocketManager
 
 import numpy as np
 
