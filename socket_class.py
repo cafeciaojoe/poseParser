@@ -11,15 +11,11 @@ When creating an instance of this class, the callback generally should be set to
 socket_manager = SocketManager(self, port=int(port))
 """
 
+import sys
 import socket
 import threading
 from time import sleep
 import pickle
-import signal
-import sys
-
-#  google exit 0 python catch signal 
-# TODO catch exit 0, kill all threads, set run - False
 
 class SocketManager:
     """
@@ -30,7 +26,7 @@ class SocketManager:
     DEFAULT_IP = "127.0.0.1"
     DEFAULT_PORT = 5001
     DEFAULT_PACKET_SIZE = 4096
-    DEFAULT_IDLE_TIMEOUT = 30
+    DEFAULT_IDLE_TIMEOUT = 3
     run = True
 
     def __init__(self, callback, ip=DEFAULT_IP, port=DEFAULT_PORT, packet_size=DEFAULT_PACKET_SIZE,
@@ -66,6 +62,8 @@ class SocketManager:
                     pass
         except threading.ThreadError:
             pass
+        except SystemExit:
+            self.stop_server()
         finally:
             self.socket.close()
 
@@ -130,3 +128,4 @@ class SocketManager:
 
     def update_callback(self, new_callback):
         self.callback = new_callback
+
