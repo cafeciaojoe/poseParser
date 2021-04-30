@@ -1,5 +1,4 @@
-# from socket_class import SocketManager
-from PoseParser.socket_class import SocketManager
+from socket_class import SocketManager
 from flask import Flask, request, send_from_directory
 from flask_cors import CORS, cross_origin
 
